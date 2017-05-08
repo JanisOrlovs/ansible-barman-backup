@@ -1,0 +1,67 @@
+- name: set custom facts
+  set_fact: 
+    backed_server: "{{ hostvars[groups['backup-client'][0]].inventory_hostname }}"
+    backup_name: "{{ backed_server }}"
+    barman_password: "{{ hostvars[groups['backup-client'][0]].barman_password }}"
+    barman_replica_password: "{{ hostvars[groups['backup-client'][0]].barman_replica_password }}"
+    client_pub_key: "{{ hostvars[groups['backup-client'][0]].client_pub_key }}"
+    postgresql_version: "{{ hostvars[groups['backup-client'][0]].postgresql_version_raw.stdout }}"
+
+- name: Setup Backup configuration file on the backup server
+  template:
+     src: backup-template.j2
+     dest: "{{ barman_configd }}/{{ backup_name }}.conf"
+     owner: "{{ barman_user }}"
+     mode: 0755
+
+- name: Create authorized_keys file if not exists for barman
+  file:
+    dest: ~/.ssh/authorized_keys
+    owner: "{{ barman_user }}"
+    group: "{{ barman_user }}"
+    state: touch
+    mode: 0644
+  become_user: "{{ barman_user }}"
+
+- name: Create authorized_keys file if not exists for barman
+  file:
+    dest: ~/.pgpass
+    owner: "{{ barman_user }}"
+    group: "{{ barman_user }}"
+    state: touch
+    mode: 0600
+  become_user: "{{ barman_user }}"
+
+- name: Setup Pgpass for backup
+  lineinfile:
+    dest: ~/.pgpass
+    line: '{{ item }}'
+    mode: 0600
+  become_user: "{{ barman_user }}"
+  with_items:
+  - "{{ backed_server }}:5432:postgres:{{ user_pg }}:{{ barman_password }}"
+  - "{{ backed_server }}:5432:postgres:{{ user_pg_stream }}:{{ barman_replica_password }}"
+
+- name: Add barman-server authorized_key
+  lineinfile: dest="~/.ssh/authorized_keys" line="{{ client_pub_key }}"
+  become_user: "{{ barman_user }}"
+
+- name: Create backup cron if not present
+  file:
+    dest: /etc/cron.d/barman-backup
+    state: touch
+
+- name: Setup barman cron
+  lineinfile:
+    dest: /etc/cron.d/barman-backup
+    line: "{{ 59 |random}} {{ 5 |random}} * * * {{ barman_user }} /usr/bin/barman {{ backup_name }}"
+
+- name: Enable replica slot timeout 180
+  shell: /usr/bin/barman receive-wal --create-slot {{ backup_name }}
+  ignore_errors: yes
+  become_user: "{{ barman_user }}"
+
+- name: get-wal timeout timeout 180
+  shell: /usr/bin/barman receive-wal  {{ backup_name }} &
+  ignore_errors: yes
+  become_user: "{{ barman_user }}"

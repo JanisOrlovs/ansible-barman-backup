@@ -1,0 +1,104 @@
+- name: Set postgresql version
+  shell: /usr/bin/psql -c 'SHOW server_version;' | egrep -o '[0-9]{1,2}\.[0-9]{1,}'
+  become_user: postgres
+  register: postgresql_version_raw
+
+
+- name: Register client-to-be-backed-up public key
+  shell: cat ~/.ssh/id_rsa.pub
+  register: client_pub_key_raw
+  become_user: postgres
+
+- name: Custom facts
+  set_fact:
+    postgresql_config_dir: "/var/lib/pgsql/{{ postgresql_version_raw.stdout }}/data"
+    backed_server: "{{ hostvars[groups['backup-server'][0]].backed_server }}"
+    server_pub_key: "{{ hostvars[groups['backup-server'][0]].server_pub_key }}"
+    backup_name: "{{ hostvars[groups['backup-server'][0]].backup_name }}"
+    backup_server: "{{ hostvars[groups['backup-server'][0]].inventory_hostname }}"
+    client_pub_key: "{{ client_pub_key_raw.stdout }}"
+    backup_server_ip: "{{ hostvars[groups['backup-server'][0]].ansible_default_ipv4.address }}"
+
+- name: set archive_mode command
+  set_fact:
+    postgresql_archive_command: "'rsync -a %p barman@{{ backup_server }}:/var/lib/barman/data/{{ backup_name }}/incoming/%f'"
+
+- name: enable archive mode for postgres
+  lineinfile:
+    dest: "{{ postgresql_config_dir }}/postgresql.conf"
+    line: "{{ item.key }} = {{ item.value }}"
+    regexp: "^#?{{ item.key }}"
+  with_dict:
+    archive_mode: "on"
+    archive_command: "{{ postgresql_archive_command }}"
+    max_replication_slots: 5
+  notify: restart postgresql
+  ignore_errors: true
+
+
+
+- name: ensure postgresql is accessible from local network for test env
+  lineinfile: dest={{ postgresql_config_dir }}/pg_hba.conf regexp={{ item.hbaregex }} line={{ item.hbaline }} state=present
+  with_items:
+  - { hbaregex: 'hostssl\s+all\s+{{ user_pg }}\s+{{ backup_server_ip }}/32\s+md5', hbaline: 'hostssl all {{ user_pg }} {{ backup_server_ip }}/32 md5' }
+  - { hbaregex: 'hostssl\s+replication\s+{{ user_pg_stream }}\s+{{ backup_server_ip }}/32\s+md5', hbaline: 'hostssl replication {{ user_pg_stream }} {{ backup_server_ip }}/32 md5' }
+  notify:
+  - restart postgresql
+
+
+- name: Get backup server key
+  set_fact:
+    server_pub_key: "{{ hostvars[groups['backup-server'][0]].server_pub_key }}"
+
+- name: debug fact
+  debug: msg="{{ server_pub_key }}"
+
+- name: Generate password for barman postgres user
+  shell: /usr/bin/mkpasswd -s 0 -l 25
+  register: password
+  when: barman_password is undefined
+
+- name: Generate password for barman postgres user
+  shell: /usr/bin/mkpasswd -s 0 -l 25
+  register: password_replica
+  when: barman_replica_password is undefined
+
+- name: Create barman superuser variable for password
+  set_fact: barman_password="{{ password.stdout }}"
+  when: barman_password is undefined
+
+- name: Create barman replica user
+  set_fact: barman_replica_password="{{ password_replica.stdout }}"
+  when: barman_replica_password is undefined
+
+- name: Create barman user for replica purposes
+  postgresql_user:
+    db: postgres
+    name: "{{ user_pg_stream }}"
+    password: "{{ barman_replica_password }}"
+    role_attr_flags: LOGIN,NOSUPERUSER,NOCREATEROLE,NOCREATEDB,REPLICATION
+  become_user: postgres
+
+
+- name: Create barman superuser for backup purposes
+  postgresql_user:
+    db: postgres
+    name: "{{ user_pg }}"
+    password: "{{ barman_password }}"
+    role_attr_flags: LOGIN,SUPERUSER,NOCREATEROLE,NOCREATEDB
+  become_user: postgres
+
+- name: Create authorized_keys file if not exists for postgres
+  file:
+    dest: ~/.ssh/authorized_keys
+    owner: postgres
+    group: postgres
+    state: touch
+    mode: 0644
+  become_user: postgres
+
+- name: Add barman-server authorized_key
+  lineinfile:
+    dest: ~/.ssh/authorized_keys
+    line: "{{ server_pub_key }}"
+  become_user: postgres

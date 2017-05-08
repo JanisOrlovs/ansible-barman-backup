@@ -1,0 +1,21 @@
+- name: Check if private keys is in place for barman user
+  stat: 
+     path: ~/.ssh/id_rsa
+  register: server_key
+  become_user: barman
+
+- name: Generate SSH key if not exist for barman user
+  user:
+    name: barman
+    generate_ssh_key: yes
+  when: server_key.stat.exists == False
+
+- name: Register server-to-be-backed-up public key
+  shell: cat ~/.ssh/id_rsa.pub
+  register: server_pub_key_raw
+  become_user: barman
+
+- name: Register new variable for public key
+  set_fact:
+     server_pub_key: "{{ server_pub_key_raw.stdout }}"
+     backup_name: "{{ backed_server }}"

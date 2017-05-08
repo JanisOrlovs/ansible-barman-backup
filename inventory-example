@@ -1,0 +1,5 @@
+[backup-server]
+backup-server.test.com
+
+[backup-client]
+database-to-backup.test.com

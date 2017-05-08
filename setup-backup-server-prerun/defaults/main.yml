@@ -1,0 +1,15 @@
+barman_user: barman
+barman_configd: /etc/barman.d
+barman_home: /var/lib/barman
+
+
+backup_retention_count: 1
+backup_retention_timescale: WEEKS
+backup_max_age_count: 1
+backup_max_age_count_timescale: DAYS
+redundancy: 7
+whendedup_enabled: true
+
+
+user_ssh: postgres
+#user_pg: postgres

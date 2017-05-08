@@ -1,0 +1,4 @@
+user_pg: barman_superuser
+user_pg_stream: barman_streaming
+user_ssh: postgres
+barman_user: barman

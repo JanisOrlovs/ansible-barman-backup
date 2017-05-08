@@ -1,0 +1,3 @@
+
+- name: restart postgresql
+  service: name=postgresql-{{ postgresql_version_raw.stdout }} state=restarted

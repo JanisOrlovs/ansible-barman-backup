@@ -1,0 +1,26 @@
+- hosts: backup-client
+  tasks: [ ]
+  user: "{{ user }}"
+  gather_facts: yes
+
+- hosts: backup-server
+  gather_facts: yes
+  become: yes
+  roles:
+  - setup-backup-server-prerun
+  user: "{{ user }}"
+
+- hosts: backup-client
+  gather_facts: yes
+  become: yes
+  roles:
+  - setup-backup-client
+  user: "{{ user }}"
+
+- hosts: backup-server
+  gather_facts: yes
+  become: yes
+  roles:
+  - setup-backup-server
+  user: "{{ user }}"
+
