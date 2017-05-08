@@ -1,4 +1,4 @@
-# Postgres Backups
+# Ansible Playbook for Postgres Backups using 2nd Quadrant Barman Backup tool
 ## General
 
 Ansible playbook used for setting up 2nd Quadrant Barman PostgreSQL backup for PostgreSQL server.
