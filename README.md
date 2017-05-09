@@ -1,7 +1,7 @@
 # Ansible Playbook for Postgres Backups using 2nd Quadrant Barman Backup tool
 ## General
 
-Ansible playbook used for setting up 2nd Quadrant Barman PostgreSQL backup for PostgreSQL server http://http://www.pgbarman.org/.
+Ansible playbook used for setting up 2nd Quadrant Barman PostgreSQL backup for PostgreSQL server http://www.pgbarman.org/.
 This backup is setup in the mode for the: backup over rsync + streaming replica. 
 In order to use:
 - Streaming replica
