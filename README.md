@@ -6,6 +6,7 @@ This backup is setup in the mode for the: backup over rsync + streaming replica.
 In order to use:
 - Streaming replica
 - Data deduplication and compression
+Enviroment: CentOS7
 
 Requirements:
 - Network connections:
